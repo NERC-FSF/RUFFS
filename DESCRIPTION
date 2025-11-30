@@ -1,0 +1,27 @@
+Package: RUFFS
+Title: R sUite For Field Spectroscopy
+Version: 0.1.0
+Authors@R: 
+    person("Robbie", "Ramsay", , "robbie.ramsay@ed.ac.uk", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-3121-2562"))
+Description: The R sUite For Field Spectroscopy Package. Developed by the Natural
+    Environment Research Council Field Spectroscopy Facility, under the National
+    Centre for Earth Observation. This package reads and processes raw data acquired
+    from Analytical Spectral Devices, Inc., Spectra Vista Corporation, and Spectral Evolution
+    field spectrometers. It provides functions for the interpolation, overlap removal,
+    and jump correction of spectral data. It also provides functions for the grouping
+    and statistical treatment (averaging, standard deviation) of large spectral data sets
+    acquired using field spectrometers. 
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Depends: 
+    R (>= 4.0.0)
+Suggests:
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+Config/testthat/edition: 3
+URL: https://github.com/NERC-FSF/RUFFS
+BugReports: https://github.com/NERC-FSF/RUFFS/issues

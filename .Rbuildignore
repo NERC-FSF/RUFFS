@@ -1,0 +1,12 @@
+^RUFFS\.Rproj$
+^\.Rproj\.user$
+^README\.Rmd$
+^LICENSE\.md$
+^\.github$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
+^\.lintr$
+^codecov\.yml$
+^cran-comments\.md$
+^CRAN-SUBMISSION$
