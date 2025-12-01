@@ -22,7 +22,7 @@ per group. Each spectrum is a dataframe with columns:
 }
 The collection retains metadata from the input (instrument, data_type,
 wavelength_range) and adds:
-\itemize
+\itemize{
 \item \code{averaged}: Logical flag set to \code{TRUE}
 \item \code{group_sizes}: Named integer vector with number of spectra
 averaged in each group
@@ -48,14 +48,14 @@ spectra <- svcreader("path/to/files") |>
   interpolate_spectra() |>
   stitch_spectra() |>
   correct_spectra() |>
-  group_spectra(separator = "_", position = 2
+  group_spectra(separator = "_", position = 2)
 
 # Compute group averages
 averaged <- average_spectra(spectra)
 
 # View result
 print(averaged)
-names(averaged$spectra)  
+names(averaged$spectra)  # Group names
 
 # Access individual averaged spectrum
 averaged$spectra[["site1_oak"]]

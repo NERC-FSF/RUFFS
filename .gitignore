@@ -29,3 +29,5 @@ inst/doc
 # Local files
 .env
 *.local
+/doc/
+/Meta/

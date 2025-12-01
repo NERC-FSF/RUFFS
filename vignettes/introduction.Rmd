@@ -1,0 +1,195 @@
+---
+title: "Getting Started with the NERC FSF RUFFS Package for Field Spectroscopy"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting Started with RUFFS}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+## Introduction
+The NERC FSF RUFFS (**R** s**U**ite **F**or **F**ield **S**pectroscopy) package is a comprehensive suite of tools designed to read and process spectral files acquired using common field spectrometers, namely, the Analytical Spectral Devices, Inc., Spectra Vista Corporation, and Spectral Evolution model ranges. 
+
+The functions can be classed into two groups, the `reader` functions, and the `operator` functions. The `reader` functions handle reading in .asd, .sig, and .sed files -- respectively, Analytical Spectral Devices, Inc., Spectra Vista Corporation, and Spectral Evolution field spectrometer output files. The `operator` functions conduct neccessary corrections to this data to provide an interpolated, detector overlap corrected tibble dataframe for further processing in the TidyVerse R ecosystem.
+
+## Reading Spectral Files
+
+### Importing the library
+
+First, import the RUFFS and TidyVerse library:
+
+```{r library, message = FALSE}
+library(RUFFS)
+library(tidyverse)
+```
+
+### Reading files
+
+RUFFS includes sample spectral data files for demonstration. We can locate them using `system.file()`:
+
+```{r extdata-path}
+extdata_path <- system.file("extdata", package = "RUFFS")
+list.files(extdata_path)
+```
+
+The `reader` function can read .asd, .sed, and .sig files. It calls upon the sub-functions `asdreader`, `svcreader`, and `psrreader` based on the argument provided to `instrument_type`. Specifying `"asd"` will read .asd files; `"svc"` will read .sig files; and `"psr"` will read .sed files. 
+
+The reader function also allows you to specify what spectral data you would like to extract, using the `data_type` argument. The options are `"reflectance"` for reflectance data from 0 to 1; `"radiance"` for radiance data (units dependent on model); and `"raw_dn"` for the digital counts. For all the examples in this vignette, we will use reflectance. 
+
+To read in .asd data:
+
+```{r read-asd}
+asd_files <- list.files(extdata_path, pattern = "\\.asd$", full.names = TRUE)
+asd_data <- reader(asd_files, data_type = "reflectance")
+asd_data
+```
+
+To read in .sig data:
+
+```{r read-svc}
+svc_files <- list.files(extdata_path, pattern = "\\.sig$", full.names = TRUE)
+svc_data <- reader(svc_files, data_type = "reflectance")
+svc_data
+```
+
+And finally, to read in .sed data:
+
+```{r read-psr}
+psr_files <- list.files(extdata_path, pattern = "\\.sed$", full.names = TRUE)
+psr_data <- reader(psr_files, data_type = "reflectance")
+psr_data
+```
+
+All three commands will return a `ruffs_spectra_collection`, a unique collection object which allows us to handle the metadata and data of each file. 
+
+## Processing Pipeline
+
+### Overlap Removal and Interpolation
+
+Usually, unless otherwise specified, a field spectrometer will output its wavelength values in a 1 nm scale. We can inspect the wavelengths of the first spectrum in each collection:
+
+```{r wavelength-asd}
+# Get the name of the first ASD spectrum
+asd_names <- names(asd_data)
+head(asd_data[[asd_names[1]]]$wavelength, 20)
+```
+
+```{r wavelength-psr}
+# Get the name of the first PSR spectrum
+psr_names <- names(psr_data)
+head(psr_data[[psr_names[1]]]$wavelength, 20)
+```
+
+Sometimes, however, it is preferable to leave the wavelength in its default scaling, i.e. the default spectral interval between channels of each of three detectors:
+
+```{r wavelength-svc}
+# Get the name of the first SVC spectrum
+svc_names <- names(svc_data)
+head(svc_data[[svc_names[1]]]$wavelength, 20)
+```
+
+As a result, the different detector wavelength scales will overlap, leading to repeated wavelength data. To illustrate further, inspect the plot at the 1000 nm and 1800 nm wavelength values:
+
+```{r plot-overlap, fig.width=7, fig.height=4}
+# Plot the first SVC spectrum
+first_svc <- svc_data[[svc_names[1]]]
+plot(first_svc$wavelength, first_svc$reflectance, type = "s",
+     xlab = "Wavelength (nm)", ylab = "Reflectance",
+     main = "SVC spectrum with detector overlaps")
+```
+
+By leaving in a default spectral interval, one benefit is that we can choose the interpolation method, and to what spacing. It also allows us to develop unique overlap "stitching" methods. 
+
+First, we need to remove the overlap in the data using `overlap_stitching`:
+
+```{r stitch}
+svc_data <- apply_to_collection(svc_data, overlap_stitching, method = "average")
+```
+
+Then, to interpolate the `svc_data` to 1 nm using a linear interpolation method:
+
+```{r interpolate}
+svc_data <- apply_to_collection(svc_data, interpolation, seq(350, 2500, 1))
+```
+
+Look again at the plot of the newly interpolated, and overlap removed, SVC data:
+
+```{r plot-fixed, fig.width=7, fig.height=4}
+# Plot the first SVC spectrum after processing
+first_svc_processed <- svc_data[[svc_names[1]]]
+plot(first_svc_processed$wavelength, first_svc_processed$reflectance, type = "s",
+     xlab = "Wavelength (nm)", ylab = "Reflectance",
+     main = "SVC spectrum after overlap stitching and interpolation")
+```
+
+To note -- these processes only need to be conducted on data that has not had its overlap removed or had interpolation conducted. By default, ASD field spectrometer and Spectral Evolution field spectrometer data is interpolated with overlaps removed. However, be cautious, as this can be switched off.
+
+### Jump Correction
+
+Regardless of whether our data needs to be interpolated and overlap stitched or not, small artefacts will remain in the data at the regions where the detector joins occurred. These are known as 'jumps', and can be removed in RUFFS using the `jump_correct` function:
+
+```{r jump-svc}
+svc_data <- apply_to_collection(svc_data, jump_correct, splices = c(990, 1810), reference = 2)
+```
+
+```{r jump-asd}
+asd_data <- apply_to_collection(asd_data, jump_correct, splices = c(1000, 1800), reference = 2)
+```
+
+```{r jump-psr}
+psr_data <- apply_to_collection(psr_data, jump_correct, splices = c(1000, 1800), reference = 2)
+```
+
+Here, `splices` takes the regions where the detectors join (given in the metadata, but will also be provided by the FSF if loaning a field spectrometer), and `reference` takes the detector type (`1` is for a two detector field spectrometer; `2`, which is the default, is for a three detector field spectrometer).
+
+### Grouping and Statistical Treatment
+
+Note that our `ruffs_spectra_collection` files are lists of individual spectra. We can see the names of our spectra:
+
+```{r show-names}
+names(asd_data)
+```
+
+We may be interested in grouping the spectra within our `ruffs_spectra_collection`, e.g. all instances of calcite spectra to be grouped into a calcite group. This would make it easier for subsequent statistical analysis. 
+
+To group spectra within the collection:
+
+```{r group-asd}
+asd_data <- group_spectra(asd_data, separator = "_", position = 1, ignore_extension = TRUE)
+```
+
+Here, `separator` takes the character to group the spectra by (in this case, underscore), and `position` asks at which separator character should the spectra be grouped (here, `1`, the first underscore).
+
+If we were to group the SVC data by the second underscore (e.g., to group `2_1_A_D` and `2_1_B_D` together as `2_1`), we would amend the `position` argument to `2`:
+
+```{r group-svc}
+svc_data <- group_spectra(svc_data, separator = "_", position = 2, ignore_extension = TRUE)
+```
+
+With our spectra now divided into groups, we can now conduct statistical analysis within group types. The `summarise_spectra` function will give the mean reflectance, the standard deviation within the reflectance, and the standard error within the reflectance, for each group:
+
+```{r summarise}
+asd_data_summary <- summarise_spectra(asd_data)
+```
+
+Which we can now plot using the `plot_summary` function:
+
+```{r plot-summary, fig.width=7, fig.height=5}
+plot_summary(asd_data_summary)
+```
+
+## Exporting from `ruffs_spectra_collection` to tibble
+
+At this point, we have now used RUFFS to read in and process our data. Moving forward, the TidyVerse ecosystem within R is an appropriate means to handle our spectral data. We can export our summary data to tibbles using the `to_tibble` function:
+
+```{r export}
+asd_tidy_data <- to_tibble(asd_data_summary)
+head(asd_tidy_data)
+```

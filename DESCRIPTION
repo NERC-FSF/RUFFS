@@ -1,6 +1,6 @@
 Package: RUFFS
 Title: R sUite For Field Spectroscopy
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: 
     person("Robbie", "Ramsay", , "robbie.ramsay@ed.ac.uk", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-3121-2562"))
@@ -21,7 +21,9 @@ Depends:
 Suggests:
     testthat (>= 3.0.0),
     knitr,
-    rmarkdown
+    rmarkdown,
+    tidyverse
 Config/testthat/edition: 3
 URL: https://github.com/NERC-FSF/RUFFS
 BugReports: https://github.com/NERC-FSF/RUFFS/issues
+VignetteBuilder: knitr
