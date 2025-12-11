@@ -7,23 +7,28 @@
 to_tibble(collection, id_column = "spectrum_id")
 }
 \arguments{
-\item{collection}{A ruffs_spectra_summary collection object}
+\item{collection}{A ruffs_spectra_summary or ruffs_spectra_collection object}
 
 \item{id_column}{Character string specifying the name for the identifier
 column (default: "spectrum_id")}
 }
 \value{
-A tibble with columns for the identifier and all spectral data
-columns in ruffs_spectra_summary collection (wavelength, mean, sd, se, n)
+A tibble with columns for the identifier and spectral data. For
+ruffs_spectra_summary: wavelength, mean, sd, se, n. For
+ruffs_spectra_collection: wavelength, reflectance (or other data columns).
 }
 \description{
-Converts a ruffs_spectra_summary collection into a long-format tibble
-suitable for use with tidyverse packages like dplyr and ggplot2.
+Converts a RUFFS collection into a long-format tibble suitable for use with
+tidyverse packages like dplyr and ggplot2. Supports both ruffs_spectra_summary
+and ruffs_spectra_collection objects.
 }
 \examples{
 \dontrun{
 # Convert summary collection to tibble
 summary_tibble <- to_tibble(my_summary_collection)
+
+# Convert spectral collection to tibble
+spectra_tibble <- to_tibble(my_spectral_collection)
 
 # Use with tidyverse tools
 library(dplyr)
