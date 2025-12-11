@@ -9,9 +9,11 @@
 #' @param spectra A `ruffs_spectra_collection` object containing multiple spectra.
 #' @param separator Character string used as the delimiter in filenames.
 #'   Default is `"_"`.
-#' @param position Integer indicating which occurrence of the separator to use
-#'   for grouping. Spectra are grouped by the portion of the filename to the
-#'   LEFT of the nth occurrence of the separator. Default is `1`.
+#' @param position Integer or integer vector indicating which occurrence(s) of 
+#'   the separator to use for grouping. Spectra are grouped by the portion of 
+#'   the filename to the LEFT of the specified separator occurrence(s). 
+#'   Can be a single integer (e.g., `1`) or multiple integers (e.g., `c(1, 3)`).
+#'   Default is `1`.
 #' @param ignore_extension Logical. If `TRUE` (default), the file extension
 #'   (e.g., `.sig`, `.sed`) is removed before parsing the filename.
 #'
@@ -22,7 +24,7 @@
 #'     \item `group_assignments`: Named character vector mapping each spectrum
 #'       to its group
 #'     \item `grouping_separator`: The separator used for grouping
-#'     \item `grouping_position`: The position used for grouping
+#'     \item `grouping_position`: The position(s) used for grouping
 #'   }
 #'
 #' @details
@@ -31,7 +33,12 @@
 #' \itemize{
 #'   \item `separator = "_"`, `position = 1` groups by: `"1"`, `"1"`, `"2"`
 #'   \item `separator = "_"`, `position = 2` groups by: `"1_tree"`, `"1_tree"`, `"2_grass"`
+#'   \item `separator = "_"`, `position = c(1, 2)` groups by: `"1_tree"`, `"1_tree"`, `"2_grass"`
 #' }
+#' 
+#' When multiple positions are specified, the function includes all text segments
+#' between the first and last specified positions, including the separators.
+#' For example, with `flower_a_R_`, using `position = c(1, 3)` groups by `"flower_R"`.
 #'
 #' Filenames that do not contain enough separator occurrences will trigger a
 #' warning and be assigned to an `"ungrouped"` category.
@@ -46,6 +53,9 @@
 #'
 #' # Group by second underscore (e.g., "1_tree" from "1_tree_a.sig")
 #' grouped <- group_spectra(spectra, separator = "_", position = 2)
+#'
+#' # Group by first and third underscore (e.g., "flower_R" from "flower_a_R_")
+#' grouped <- group_spectra(spectra, separator = "_", position = c(1, 3))
 #'
 #' # View group information
 #' print(attr(grouped, "group_names"))
@@ -133,19 +143,28 @@ group_spectra <- function(spectra,
     stop("'separator' cannot be an empty string.", call. = FALSE)
   }
   
-  # Check position
-  if (!is.numeric(position) || length(position) != 1) {
+  # Check position - now allows vector of integers
+  if (!is.numeric(position) || length(position) < 1) {
     stop(
-      "'position' must be a single integer.\n",
+      "'position' must be a single integer or vector of integers.\n",
       "Received: ", typeof(position), " of length ", length(position),
       call. = FALSE
     )
   }
   
-  if (position < 1 || position != as.integer(position)) {
+  if (any(position < 1) || any(position != as.integer(position))) {
     stop(
-      "'position' must be a positive integer (>= 1).\n",
-      "Received: ", position,
+      "'position' must be positive integer(s) (>= 1).\n",
+      "Received: ", paste(position, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  
+  # Check for duplicate positions
+  if (length(position) > 1 && any(duplicated(position))) {
+    stop(
+      "'position' cannot contain duplicate values.\n",
+      "Received: ", paste(position, collapse = ", "),
       call. = FALSE
     )
   }
@@ -178,12 +197,15 @@ group_spectra <- function(spectra,
 }
 
 
-#' Extract group names based on separator position
+#' Extract group names based on separator position(s)
 #' @noRd
 .extract_group_names <- function(filenames, original_names, separator, position) {
   
   # Escape special regex characters in separator
   sep_escaped <- gsub("([.\\^$*+?{}\\[\\]|()])", "\\\\\\1", separator)
+  
+  # Sort positions to ensure we work from first to last
+  position_sorted <- sort(position)
   
   group_assignments <- vapply(seq_along(filenames), function(i) {
     filename <- filenames[i]
@@ -193,20 +215,56 @@ group_spectra <- function(spectra,
     matches <- gregexpr(sep_escaped, filename)[[1]]
     
     # Check if enough separators exist
-    if (matches[1] == -1 || length(matches) < position) {
+    max_pos <- max(position_sorted)
+    if (matches[1] == -1 || length(matches) < max_pos) {
       warning(
-        "Filename '", original, "' has fewer than ", position,
+        "Filename '", original, "' has fewer than ", max_pos,
         " occurrence(s) of '", separator, "'. Assigned to 'ungrouped'.",
         call. = FALSE
       )
       return("ungrouped")
     }
     
-    # Get position of the nth separator
-    sep_position <- matches[position]
-    
-    # Extract substring to the left of the separator
-    substr(filename, 1, sep_position - 1)
+    # Handle single or multiple positions
+    if (length(position_sorted) == 1) {
+      # Original behavior: extract to left of single position
+      sep_position <- matches[position_sorted[1]]
+      return(substr(filename, 1, sep_position - 1))
+    } else {
+      # Multiple positions: extract segments between first and last positions
+      # and remove segments at excluded positions
+      first_pos <- position_sorted[1]
+      last_pos <- position_sorted[length(position_sorted)]
+      
+      # Get start (left of first position) and end (left of last position)
+      start_idx <- matches[first_pos]
+      end_idx <- matches[last_pos]
+      
+      # Extract the substring from start to end
+      extracted <- substr(filename, 1, end_idx - 1)
+      
+      # Remove segments that should be excluded
+      # Work backwards to preserve positions
+      for (pos_idx in seq_along(matches)) {
+        if (pos_idx > first_pos && pos_idx < last_pos && !(pos_idx %in% position_sorted)) {
+          # This separator position should be removed along with text before it
+          # Find the previous kept separator
+          prev_kept <- max(position_sorted[position_sorted < pos_idx])
+          next_kept <- min(position_sorted[position_sorted > pos_idx])
+          
+          # Remove from previous separator to this one
+          prev_match <- matches[prev_kept]
+          curr_match <- matches[pos_idx]
+          
+          # Remove the segment between prev_kept and pos_idx
+          before <- substr(extracted, 1, prev_match - 1)
+          after <- substr(extracted, curr_match, nchar(extracted))
+          extracted <- paste0(before, after)
+        }
+      }
+      
+      return(extracted)
+    }
     
   }, character(1))
   
@@ -233,8 +291,7 @@ group_spectra <- function(spectra,
   # Display group summary
   for (grp in group_names) {
     count <- group_counts[grp]
-    message("
-- '", grp, "': ", count, " spectrum/spectra")
+    message("  - '", grp, "': ", count, " spectrum/spectra")
   }
 }
 
@@ -406,7 +463,14 @@ print.ruffs_spectra_collection_grouped <- function(x, ...) {
   # Collection info
   cat("Total spectra:    ", n_spectra, "\n")
   cat("Number of groups: ", n_groups, "\n")
-  cat("Grouping rule:    Left of '", separator, "' occurrence #", position, "\n",
+  
+  # Format position display
+  if (length(position) == 1) {
+    pos_text <- paste0("#", position)
+  } else {
+    pos_text <- paste0("#", paste(position, collapse = ", #"))
+  }
+  cat("Grouping rule:    Left of '", separator, "' occurrence ", pos_text, "\n",
       sep = "")
   
   # Instrument and data type if available

@@ -12,9 +12,11 @@ group_spectra(spectra, separator = "_", position = 1, ignore_extension = TRUE)
 \item{separator}{Character string used as the delimiter in filenames.
 Default is \code{"_"}.}
 
-\item{position}{Integer indicating which occurrence of the separator to use
-for grouping. Spectra are grouped by the portion of the filename to the
-LEFT of the nth occurrence of the separator. Default is \code{1}.}
+\item{position}{Integer or integer vector indicating which occurrence(s) of
+the separator to use for grouping. Spectra are grouped by the portion of
+the filename to the LEFT of the specified separator occurrence(s).
+Can be a single integer (e.g., \code{1}) or multiple integers (e.g., \code{c(1, 3)}).
+Default is \code{1}.}
 
 \item{ignore_extension}{Logical. If \code{TRUE} (default), the file extension
 (e.g., \code{.sig}, \code{.sed}) is removed before parsing the filename.}
@@ -27,7 +29,7 @@ collection with additional grouping information stored as attributes:
 \item \code{group_assignments}: Named character vector mapping each spectrum
 to its group
 \item \code{grouping_separator}: The separator used for grouping
-\item \code{grouping_position}: The position used for grouping
+\item \code{grouping_position}: The position(s) used for grouping
 }
 }
 \description{
@@ -42,7 +44,12 @@ For example, with files named \verb{1_tree_a.sig}, \verb{1_tree_b.sig}, \verb{2_
 \itemize{
 \item \code{separator = "_"}, \code{position = 1} groups by: \code{"1"}, \code{"1"}, \code{"2"}
 \item \code{separator = "_"}, \code{position = 2} groups by: \code{"1_tree"}, \code{"1_tree"}, \code{"2_grass"}
+\item \code{separator = "_"}, \code{position = c(1, 2)} groups by: \code{"1_tree"}, \code{"1_tree"}, \code{"2_grass"}
 }
+
+When multiple positions are specified, the function includes all text segments
+between the first and last specified positions, including the separators.
+For example, with \code{flower_a_R_}, using \code{position = c(1, 3)} groups by \code{"flower_R"}.
 
 Filenames that do not contain enough separator occurrences will trigger a
 warning and be assigned to an \code{"ungrouped"} category.
@@ -57,6 +64,9 @@ grouped <- group_spectra(spectra, separator = "_", position = 1)
 
 # Group by second underscore (e.g., "1_tree" from "1_tree_a.sig")
 grouped <- group_spectra(spectra, separator = "_", position = 2)
+
+# Group by first and third underscore (e.g., "flower_R" from "flower_a_R_")
+grouped <- group_spectra(spectra, separator = "_", position = c(1, 3))
 
 # View group information
 print(attr(grouped, "group_names"))
